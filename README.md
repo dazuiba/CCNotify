@@ -2,15 +2,19 @@
 
 # CCNotify
 
-CCNotify provides desktop notifications for Claude Code, alerting you when Claude needs your input or completes tasks.
+CCNotify provides notifications for Claude Code, alerting you when Claude needs your input or completes tasks.
 
 ## Features
 
-- 🔔 **Get notified** when Claude requires your input or completes a task.
-- 🔗 **Click to jump back** when notifications are clicked, automatically taking you to the corresponding project in VS Code.
+- 🔔 **Get notified** when Claude requires your input or completes a task
+- 🔗 **Click to jump back** when notifications are clicked, automatically taking you to the corresponding project in VS Code (macOS only)
 - ⏱️ **Task Duration**: Displays started time, and how long the task took to complete
+- 🤖 **Telegram Support**: Cross-platform notifications via Telegram bot (works on any platform, including SSH environments)
+- 🖥️ **Dual Mode**: Use terminal notifications, Telegram, or both simultaneously
 
-**Note**: Currently compatible with macOS only.
+**Platform Support**: 
+- **macOS**: Terminal notifications + Telegram
+- **All platforms**: Telegram notifications (Linux, Windows, SSH environments)
 
 
 ## Installation Guide
@@ -31,14 +35,19 @@ chmod a+x ~/.claude/ccnotify/ccnotify.py
 ok
 
 ```
-### 2. Install terminal-notifier
-ccnotify uses `terminal-notifier` for macOS notifications. Install it using Homebrew:
+### 2. Choose Your Notification Method
+
+#### Option A: Terminal Notifications (macOS only)
+Install `terminal-notifier` for native macOS notifications:
 
 ```bash
 brew install terminal-notifier
 ```
 
-For alternative installation methods and more information, visit: https://github.com/julienXX/terminal-notifier
+For alternative installation methods, visit: https://github.com/julienXX/terminal-notifier
+
+#### Option B: Telegram Notifications (All platforms)
+Set up a Telegram bot for cross-platform notifications. See [Telegram Bot Setup](#telegram-bot-setup) section below.
 
 ### 3. Configure Claude Hooks
 Add the following hooks to your Claude configuration to enable ccnotify:
@@ -88,7 +97,65 @@ To verify the notification system works, start a new Claude Code session and run
 ```
 after 1 second, echo 'hello'
 ```
-You should see a macOS notification appear.
+You should see a notification appear (terminal notification on macOS, or Telegram message if configured).
+
+## Configuration
+
+CCNotify creates a `config.json` file in `~/.claude/ccnotify/` on first run. You can customize notification methods:
+
+```json
+{
+  "notifications": {
+    "terminal": {
+      "enabled": true
+    },
+    "telegram": {
+      "enabled": false,
+      "bot_token": "your_bot_token_here",
+      "chat_id": "your_chat_id_here"
+    }
+  }
+}
+```
+
+**Configuration Options:**
+- Set `terminal.enabled: false` to disable macOS notifications
+- Set `telegram.enabled: true` and add your bot credentials to enable Telegram
+- You can enable both methods simultaneously
+
+## Telegram Bot Setup
+
+### Step 1: Create a Telegram Bot
+1. Open Telegram and search for `@BotFather`
+2. Send `/newbot` command
+3. Choose a name for your bot (e.g., "My Claude Notifier")
+4. Choose a username (must end with `bot`, e.g., "my_claude_notifier_bot")
+5. Copy the bot token (looks like `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
+
+### Step 2: Get Your Chat ID
+1. Send any message to your bot (e.g., `/start`)
+2. Open this URL in your browser (replace `YOUR_BOT_TOKEN`):
+   ```
+   https://api.telegram.org/botYOUR_BOT_TOKEN/getUpdates
+   ```
+3. Look for `"chat":{"id":123456789}` and copy the ID number
+
+### Step 3: Configure CCNotify
+Edit `~/.claude/ccnotify/config.json`:
+```json
+{
+  "notifications": {
+    "terminal": {
+      "enabled": true
+    },
+    "telegram": {
+      "enabled": true,
+      "bot_token": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz",
+      "chat_id": "123456789"
+    }
+  }
+}
+```
 
 ## How It Works
 
@@ -100,6 +167,64 @@ ccnotify tracks Claude sessions and provides notifications at key moments:
 
 All activity is logged to `~/.claude/ccnotify/ccnotify.log` and session data is stored in `~/.claude/ccnotify/ccnotify.db` locally. No data is uploaded or shared externally.
 
+## Telegram Sender Tool
+
+CCNotify includes a standalone `telegram_sender.py` script for sending messages directly to Telegram from command pipelines. This tool reuses the CCNotify Telegram configuration.
+
+### Features
+- 📤 **Pipeline friendly**: Reads from stdin for easy integration
+- 🔧 **Uses existing config**: Leverages CCNotify's Telegram bot setup
+- 📝 **Optional titles**: Add custom titles to messages
+- 🚀 **Lightweight**: Simple script with no additional dependencies
+
+### Usage
+
+```bash
+# Basic usage
+echo "Task completed!" | ./telegram_sender.py
+
+# With custom title
+echo "Training accuracy: 95.2%" | ./telegram_sender.py "ML Model Results"
+
+# In command pipelines
+model_train | ./telegram_sender.py "Training Complete"
+
+# With Claude Code integration
+your_command | claude "summarize this output" | ./telegram_sender.py "Command Summary"
+```
+
+### Creating a Convenient Alias
+
+For frequent use with Claude Code, create a `telecc` alias that combines Claude summarization with Telegram sending:
+
+```bash
+# Add to your ~/.bashrc or ~/.zshrc
+alias telecc='claude "Please provide a concise summary of this output, highlighting key results, errors, or important information:" | ./telegram_sender.py'
+
+# Usage examples:
+model_training_script | telecc "Training Results"
+long_running_process | telecc "Process Complete"
+pytest --verbose | telecc "Test Results"
+```
+
+### Installation
+
+1. Ensure CCNotify is configured with Telegram enabled
+2. Copy or link `telegram_sender.py` to your desired location:
+   ```bash
+   # Copy to local directory
+   cp telegram_sender.py ~/bin/
+   
+   # Or create symlink in your PATH
+   ln -s $(pwd)/telegram_sender.py ~/bin/telegram_sender
+   ```
+3. Make sure the script is executable: `chmod +x telegram_sender.py`
+
+### Requirements
+
+- CCNotify must be installed and configured with Telegram enabled
+- Valid `config.json` file at `~/.claude/ccnotify/config.json`
+- Network access to Telegram Bot API
 
 ## Uninstall
 
