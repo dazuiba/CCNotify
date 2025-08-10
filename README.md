@@ -167,6 +167,64 @@ ccnotify tracks Claude sessions and provides notifications at key moments:
 
 All activity is logged to `~/.claude/ccnotify/ccnotify.log` and session data is stored in `~/.claude/ccnotify/ccnotify.db` locally. No data is uploaded or shared externally.
 
+## Telegram Sender Tool
+
+CCNotify includes a standalone `telegram_sender.py` script for sending messages directly to Telegram from command pipelines. This tool reuses the CCNotify Telegram configuration.
+
+### Features
+- 📤 **Pipeline friendly**: Reads from stdin for easy integration
+- 🔧 **Uses existing config**: Leverages CCNotify's Telegram bot setup
+- 📝 **Optional titles**: Add custom titles to messages
+- 🚀 **Lightweight**: Simple script with no additional dependencies
+
+### Usage
+
+```bash
+# Basic usage
+echo "Task completed!" | ./telegram_sender.py
+
+# With custom title
+echo "Training accuracy: 95.2%" | ./telegram_sender.py "ML Model Results"
+
+# In command pipelines
+model_train | ./telegram_sender.py "Training Complete"
+
+# With Claude Code integration
+your_command | claude "summarize this output" | ./telegram_sender.py "Command Summary"
+```
+
+### Creating a Convenient Alias
+
+For frequent use with Claude Code, create a `telecc` alias that combines Claude summarization with Telegram sending:
+
+```bash
+# Add to your ~/.bashrc or ~/.zshrc
+alias telecc='claude "Please provide a concise summary of this output, highlighting key results, errors, or important information:" | ./telegram_sender.py'
+
+# Usage examples:
+model_training_script | telecc "Training Results"
+long_running_process | telecc "Process Complete"
+pytest --verbose | telecc "Test Results"
+```
+
+### Installation
+
+1. Ensure CCNotify is configured with Telegram enabled
+2. Copy or link `telegram_sender.py` to your desired location:
+   ```bash
+   # Copy to local directory
+   cp telegram_sender.py ~/bin/
+   
+   # Or create symlink in your PATH
+   ln -s $(pwd)/telegram_sender.py ~/bin/telegram_sender
+   ```
+3. Make sure the script is executable: `chmod +x telegram_sender.py`
+
+### Requirements
+
+- CCNotify must be installed and configured with Telegram enabled
+- Valid `config.json` file at `~/.claude/ccnotify/config.json`
+- Network access to Telegram Bot API
 
 ## Uninstall
 
