@@ -18,8 +18,10 @@ class ClaudePromptTracker:
     def __init__(self):
         """Initialize the prompt tracker with database setup"""
         script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.script_dir = script_dir
         self.db_path = os.path.join(script_dir, "ccnotify.db")
         self.setup_logging()
+        self.load_config()
         self.init_database()
 
     def setup_logging(self):
@@ -47,6 +49,32 @@ class ClaudePromptTracker:
         logger = logging.getLogger()
         logger.setLevel(logging.INFO)
         logger.addHandler(handler)
+
+    def load_config(self):
+        """Load configuration from config.json"""
+        config_path = os.path.join(self.script_dir, "config.json")
+        default_config = {
+            "notifications": {
+                "terminal": {
+                    "enabled": True
+                },
+                "telegram": {
+                    "enabled": False,
+                    "bot_token": "",
+                    "chat_id": ""
+                }
+            }
+        }
+
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                self.config = json.load(f)
+        else:
+            self.config = default_config
+            with open(config_path, 'w') as f:
+                json.dump(default_config, f, indent=2)
+
+        logging.info(f"Config loaded from {config_path}")
 
     def init_database(self):
         """Create tables and triggers if they don't exist"""
@@ -271,11 +299,21 @@ class ClaudePromptTracker:
             return "Unknown"
 
     def send_notification(self, title, subtitle, cwd=None):
-        """Send macOS notification using terminal-notifier"""
+        """Send notification via configured methods"""
         from datetime import datetime
 
         current_time = datetime.now().strftime("%B %d, %Y at %H:%M")
 
+        # Send terminal notification if enabled
+        if self.config["notifications"]["terminal"]["enabled"]:
+            self.send_terminal_notification(title, subtitle, current_time, cwd)
+
+        # Send telegram notification if enabled
+        if self.config["notifications"]["telegram"]["enabled"]:
+            self.send_telegram_notification(title, subtitle, current_time, cwd)
+
+    def send_terminal_notification(self, title, subtitle, current_time, cwd=None):
+        """Send macOS notification using terminal-notifier"""
         try:
             cmd = [
                 "terminal-notifier",
@@ -291,11 +329,46 @@ class ClaudePromptTracker:
                 cmd.extend(["-execute", f'/usr/local/bin/code "{cwd}"'])
 
             subprocess.run(cmd, check=False, capture_output=True)
-            logging.info(f"Notification sent: {title} - {subtitle}")
+            logging.info(f"Terminal notification sent: {title} - {subtitle}")
         except FileNotFoundError:
             logging.warning("terminal-notifier not found, notification skipped")
         except Exception as e:
-            logging.error(f"Error sending notification: {e}")
+            logging.error(f"Error sending terminal notification: {e}")
+
+    def send_telegram_notification(self, title, subtitle, current_time, cwd=None):
+        """Send notification via Telegram bot"""
+        try:
+            import urllib.request
+            import urllib.parse
+
+            bot_token = self.config["notifications"]["telegram"]["bot_token"]
+            chat_id = self.config["notifications"]["telegram"]["chat_id"]
+
+            if not bot_token or not chat_id:
+                logging.warning("Telegram bot_token and chat_id must be configured")
+                return
+
+            # Format message
+            message = f"🔔 *{title}*\n{subtitle}\n📅 {current_time}"
+            if cwd:
+                message += f"\n📁 `{cwd}`"
+
+            # Send via Telegram Bot API
+            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+            data = urllib.parse.urlencode({
+                'chat_id': chat_id,
+                'text': message,
+                'parse_mode': 'Markdown'
+            }).encode('utf-8')
+
+            req = urllib.request.Request(url, data=data, method='POST')
+            with urllib.request.urlopen(req) as response:
+                if response.status != 200:
+                    raise Exception(f"Telegram API error: {response.status}")
+
+            logging.info(f"Telegram notification sent: {title} - {subtitle}")
+        except Exception as e:
+            logging.error(f"Error sending Telegram notification: {e}")
 
 
 def validate_input_data(data, expected_event_name):
